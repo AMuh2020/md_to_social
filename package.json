@@ -1,0 +1,16 @@
+{
+  "name": "md_to_social",
+  "version": "1.0.0",
+  "description": "Plan is to take readme, and convert it into stylised HTML posts for instagram",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}
