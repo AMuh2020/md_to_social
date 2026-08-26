@@ -674,17 +674,15 @@ function renderSlides() {
 
     // Slide Footer
     let footerHTML = '';
-    if (slide.type !== 'outro') {
-      const counterText = `${pageNumStr} / ${totalStr}`;
-      const swipeText = index === totalSlides - 1 ? 'End' : 'Swipe →';
+    const counterText = `${pageNumStr} / ${totalStr}`;
+    const swipeText = index === totalSlides - 1 ? 'End' : 'Swipe →';
 
-      footerHTML = `
-        <div class="slide-footer" style="display:flex; align-items:center; justify-content:space-between; margin-top: 20px; font-size: 26px; font-weight:600;">
-          ${state.showCounter ? `<div style="display:inline-flex; align-items:center; justify-content:center; line-height:1; background:var(--slide-card-bg); border: 1px solid var(--slide-border); padding: 8px 18px; border-radius: 9999px; color:var(--slide-muted);">${counterText}</div>` : '<div></div>'}
-          ${state.showSwipe && index < totalSlides - 1 ? `<div style="color:var(--slide-accent); display:inline-flex; align-items:center; line-height:1; gap:6px;">${swipeText}</div>` : '<div></div>'}
-        </div>
-      `;
-    }
+    footerHTML = `
+      <div class="slide-footer" style="display:flex; align-items:center; justify-content:space-between; margin-top: 20px; font-size: 26px; font-weight:600;">
+        ${state.showCounter ? `<div style="display:inline-flex; align-items:center; justify-content:center; line-height:1; background:var(--slide-card-bg); border: 1px solid var(--slide-border); padding: 8px 18px; border-radius: 9999px; color:var(--slide-muted);">${counterText}</div>` : '<div></div>'}
+        ${state.showSwipe && index < totalSlides ? `<div style="color:var(--slide-accent); display:inline-flex; align-items:center; line-height:1; gap:6px;">${swipeText}</div>` : '<div></div>'}
+      </div>
+    `;
 
     canvasNode.innerHTML = `
       ${headerHTML}
