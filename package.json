@@ -7,6 +7,9 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
+    "dev": "npx serve . -l 3000",
+    "start": "npx serve . -l 3000",
+    "build:css": "npx @tailwindcss/cli -i input.css -o output.css --minify",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
