@@ -646,15 +646,17 @@ function renderSlides() {
 
     // Slide Footer
     let footerHTML = '';
-    const counterText = `${pageNumStr} / ${totalStr}`;
-    const swipeText = index === totalSlides - 1 ? 'End' : 'Swipe →';
+    if (slide.type !== 'outro') {
+      const counterText = `${pageNumStr} / ${totalStr}`;
+      const swipeText = index === totalSlides - 1 ? 'End' : 'Swipe →';
 
-    footerHTML = `
-      <div class="slide-footer" style="display:flex; align-items:center; justify-content:space-between; align-items:center; margin-top: 20px; font-size: 30px; font-weight:600;">
-        ${state.showCounter ? `<span style="background:var(--slide-card-bg); border: 1px solid var(--slide-border); padding: 8px 18px; border-radius: 999px; color:var(--slide-muted);">${counterText}</span>` : '<span></span>'}
-        ${state.showSwipe && index < totalSlides ? `<span style="color:var(--slide-accent); display:flex; align-items:center; gap:6px;">${swipeText}</span>` : '<span></span>'}
-      </div>
-    `;
+      footerHTML = `
+        <div class="slide-footer" style="display:flex; align-items:center; justify-content:space-between; margin-top: 20px; font-size: 26px; font-weight:600;">
+          ${state.showCounter ? `<div style="display:inline-flex; align-items:center; justify-content:center; line-height:1; background:var(--slide-card-bg); border: 1px solid var(--slide-border); padding: 8px 18px; border-radius: 9999px; color:var(--slide-muted);">${counterText}</div>` : '<div></div>'}
+          ${state.showSwipe && index < totalSlides - 1 ? `<div style="color:var(--slide-accent); display:inline-flex; align-items:center; line-height:1; gap:6px;">${swipeText}</div>` : '<div></div>'}
+        </div>
+      `;
+    }
 
     canvasNode.innerHTML = `
       ${headerHTML}
@@ -690,11 +692,12 @@ function renderSlides() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// HIGH RESOLUTION CANVAS EXPORT ENGINE
-async function renderCanvasForSlide(slideIndex) {
+// SNAPDOM HIGH-RESOLUTION EXPORT ENGINE
+async function captureSlideSnap(slideIndex) {
   const canvasNode = document.getElementById(`slide-canvas-${slideIndex}`);
   if (!canvasNode) return null;
 
+  // Clone node at full unscaled native resolution
   const clone = canvasNode.cloneNode(true);
   clone.style.transform = 'none';
   clone.style.position = 'fixed';
@@ -704,18 +707,21 @@ async function renderCanvasForSlide(slideIndex) {
   document.body.appendChild(clone);
 
   try {
-    const canvas = await html2canvas(clone, {
+    const snapFn = (typeof snapdom === 'function') ? snapdom : (window.snapdom?.snapdom || window.snapdom);
+    if (!snapFn) {
+      throw new Error('SnapDOM library is not loaded');
+    }
+
+    const snap = await snapFn(clone, {
       scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      backgroundColor: null
+      embedFonts: true
     });
+    
     document.body.removeChild(clone);
-    return canvas;
+    return snap;
   } catch (err) {
-    document.body.removeChild(clone);
-    console.error('Canvas export error:', err);
+    if (clone.parentNode) document.body.removeChild(clone);
+    console.error('SnapDOM capture error:', err);
     throw err;
   }
 }
@@ -723,14 +729,18 @@ async function renderCanvasForSlide(slideIndex) {
 // Download single slide PNG
 async function downloadSingleSlide(index) {
   try {
-    showExportModal('Generating Slide Image...', `Rendering slide #${index + 1} at high-res 1080px...`);
-    const canvas = await renderCanvasForSlide(index);
+    showExportModal('Generating Slide Image...', `Rendering slide #${index + 1} with SnapDOM...`);
+    const snap = await captureSlideSnap(index);
     hideExportModal();
 
-    if (!canvas) return;
-    canvas.toBlob(blob => {
+    if (!snap) return;
+    
+    if (typeof snap.download === 'function') {
+      await snap.download({ format: 'png', filename: `slide_${String(index + 1).padStart(2, '0')}.png` });
+    } else {
+      const blob = await snap.toBlob({ type: 'png' });
       saveAs(blob, `slide_${String(index + 1).padStart(2, '0')}.png`);
-    }, 'image/png');
+    }
   } catch (err) {
     hideExportModal();
     alert('Failed to generate image: ' + err.message);
@@ -744,26 +754,30 @@ async function copySlideToClipboard(index, btnEl) {
     btnEl.innerHTML = `<i data-lucide="loader" class="w-3 h-3 animate-spin"></i>`;
     if (window.lucide) window.lucide.createIcons();
 
-    const canvas = await renderCanvasForSlide(index);
-    if (!canvas) return;
+    const snap = await captureSlideSnap(index);
+    if (!snap) {
+      btnEl.innerHTML = origHTML;
+      return;
+    }
 
-    canvas.toBlob(async (blob) => {
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
-        ]);
-        btnEl.innerHTML = `<i data-lucide="check" class="w-3 h-3 text-emerald-400"></i>`;
-        if (window.lucide) window.lucide.createIcons();
-        setTimeout(() => {
-          btnEl.innerHTML = origHTML;
-          if (window.lucide) window.lucide.createIcons();
-        }, 2000);
-      } catch (clipErr) {
-        console.error('Clipboard error:', clipErr);
+    const blob = await snap.toBlob({ type: 'png' });
+    if (!blob) throw new Error('Could not create image blob');
+
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      btnEl.innerHTML = `<i data-lucide="check" class="w-3 h-3 text-emerald-400"></i>`;
+      if (window.lucide) window.lucide.createIcons();
+      setTimeout(() => {
         btnEl.innerHTML = origHTML;
-        alert('Could not copy directly to clipboard. You can use the PNG download button instead.');
-      }
-    }, 'image/png');
+        if (window.lucide) window.lucide.createIcons();
+      }, 2000);
+    } catch (clipErr) {
+      console.error('Clipboard error:', clipErr);
+      btnEl.innerHTML = origHTML;
+      alert('Could not copy directly to clipboard. You can use the PNG download button instead.');
+    }
   } catch (err) {
     alert('Failed to copy slide: ' + err.message);
   }
@@ -782,10 +796,9 @@ async function exportAllSlidesAsZip() {
 
   try {
     for (let i = 0; i < total; i++) {
-      elements.exportStatusDesc.textContent = `Rendering slide ${i + 1} of ${total}...`;
-      const canvas = await renderCanvasForSlide(i);
-      
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      elements.exportStatusDesc.textContent = `Rendering slide ${i + 1} of ${total} with SnapDOM...`;
+      const snap = await captureSlideSnap(i);
+      const blob = await snap.toBlob({ type: 'png' });
       const filename = `slide_${String(i + 1).padStart(2, '0')}.png`;
       zip.file(filename, blob);
     }
