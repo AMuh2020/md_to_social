@@ -1,13 +1,41 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Document</title>
-    </head>
-    <body class="bg-black">
-        <div class="bg-black">
-
+<html lang="en" class="m-0 p-0">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="../output.css">
+</head>
+<body class="bg-white h-screen w-screen flex items-center justify-center">
+    <div class="flex items-center justify-center bg-black h-[1350px] w-[1080px] flex-col">
+        <!-- <div class="flex-1 bg-green-500">
+            top
+        </div> -->
+        <!-- overflow logic here or in code? -->
+        <div class="bg-black overflow-hidden p-[100px]">
+            <div id="text-container" class="text-6xl w-full text-center text-white">
+                <!-- {{ content }} -->
+                Lorem ipsum dolor sit amet consectetur adipisicing elit. Iure voluptatibus ea officia minus minima, laborum adipisci odio, quas neque sapiente rerum vero ducimus tempore! Deleniti, culpa dignissimos! Consectetur, facilis deserunt?
+                <br>
+                Lorem ipsum dolor sit amet consectetur adipisicing elit. Iure voluptatibus ea officia minus minima, laborum adipisci odio, quas neque sapiente rerum vero ducimus tempore! Deleniti, culpa dignissimos! Consectetur, facilis deserunt?
+            </div>
         </div>
-    </body>
+        <!-- <div class="flex-1 bg-green-500">
+            bottom
+        </div> -->
+    </div>
+    <script>
+        // I want the text that goes past a limit to be paginated.
+        // prioritise keeping paragraphs together, but if a paragraph is too long, split it across pages.
+
+        const textContainer = document.getElementById('text-container');
+        const maxTextHeight = 1000; // Set the maximum height for the text container
+        let pages = [];
+        if (textContainer.scrollHeight > maxTextHeight) {
+            // Implement pagination logic here
+            // You can split the text into multiple pages and display them one at a time.
+            
+        }
+    </script>
+</body>
 </html>

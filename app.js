@@ -1,9 +1,7 @@
 // MD to Social — Instagram Carousel Creator Engine
 // Clean & Minimal Engine with File Import and Zero-Clip DOM Auto-Packing
 
-const DEFAULT_MARKDOWN = `# A Bit More Loud, A Lot Less Lazy
-
-I'm still not where I want to be, but I seem to be moving closer.
+const DEFAULT_MARKDOWN = `I'm still not where I want to be, but I seem to be moving closer.
 
 If you ask my parents to describe me, two words always come up: **"He is lazy"** and **"Abdulmuhmeen? that boy is so quiet"**.
 
@@ -287,30 +285,27 @@ AbdulMuhmeen A. Leasu (aka AMAL)`;
 function readMarkdownFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
-    const text = e.target.result;
-    state.markdown = text;
-    elements.markdownInput.value = text;
+    const rawText = e.target.result || '';
+    const lines = rawText.split('\n');
     
-    // Auto-detect Title and Subtitle from file content
-    const lines = text.split('\n');
-    const h1Line = lines.find(l => l.startsWith('# '));
-    if (h1Line) {
-      state.title = h1Line.replace(/^#\s+/, '').trim();
+    // Check if the file starts with an # H1 heading
+    const firstNonEmptyLine = lines.find(l => l.trim().length > 0) || '';
+    let bodyText = rawText;
+
+    if (firstNonEmptyLine.startsWith('# ')) {
+      state.title = firstNonEmptyLine.replace(/^#\s+/, '').trim();
       if (elements.coverTitleInput) {
         elements.coverTitleInput.value = state.title;
       }
+      // Remove the # H1 line from the body markdown
+      const h1Index = lines.indexOf(firstNonEmptyLine);
+      const remainingLines = [...lines];
+      remainingLines.splice(h1Index, 1);
+      bodyText = remainingLines.join('\n').trim();
     }
     
-    const restLines = lines.filter(l => !l.startsWith('#')).join('\n').trim();
-    if (restLines) {
-      const paragraphs = restLines.split(/\n\n+/);
-      if (paragraphs.length > 0 && paragraphs[0].length < 180 && !paragraphs[0].startsWith('#')) {
-        state.subtitle = paragraphs[0];
-        if (elements.coverSubtitleInput) {
-          elements.coverSubtitleInput.value = state.subtitle;
-        }
-      }
-    }
+    state.markdown = bodyText;
+    elements.markdownInput.value = bodyText;
     
     updateStats();
     recalculateAndRender();
@@ -338,50 +333,43 @@ function updateStats() {
 
 // INTELLIGENT DOM-BASED AUTO-PACKING ENGINE
 function recalculateAndRender() {
-  if (!state.markdown.trim()) {
-    state.slides = [];
-    renderSlides();
-    return;
-  }
-
   // 1. Prepare Sandbox Container
   setupSandbox();
 
-  // 2. Parse Markdown Sections
-  const rawMarkdown = state.markdown;
-  const sections = rawMarkdown.split(/\n\s*---\s*\n/);
-
   const slides = [];
 
-  sections.forEach((sectionStr, sectionIdx) => {
-    const trimmedSection = sectionStr.trim();
-    if (!trimmedSection) return;
+  // 2. Cover Slide: Strictly from Title & Subtitle fields
+  if (state.title && state.title.trim()) {
+    slides.push(generateCoverSlide());
+  }
 
-    // Check if first section starts with H1 for a Cover Slide
-    if (sectionIdx === 0 && trimmedSection.startsWith('# ')) {
-      const parsedCover = parseCoverSlide(trimmedSection);
-      if (parsedCover) {
-        slides.push(parsedCover.coverSlide);
-        if (parsedCover.remainingMarkdown) {
-          packContentIntoSlides(parsedCover.remainingMarkdown, slides);
-        }
-        return;
+  // 3. Body Slides: Strictly from Markdown Textarea
+  if (state.markdown && state.markdown.trim()) {
+    const rawMarkdown = state.markdown;
+    const sections = rawMarkdown.split(/\n\s*---\s*\n/);
+    sections.forEach((sectionStr) => {
+      const trimmedSection = sectionStr.trim();
+      if (trimmedSection) {
+        packContentIntoSlides(trimmedSection, slides);
       }
-    }
+    });
+  }
 
-    // Normal section packing with DOM overflow detection
-    packContentIntoSlides(trimmedSection, slides);
-  });
-
-  // Outro slide
-  if (state.showOutro && slides.length > 0) {
+  // 4. Outro Slide: Strictly from Final Slide Text
+  if (state.showOutro && state.outroText && state.outroText.trim()) {
     slides.push({
       type: 'outro',
       html: generateOutroHTML()
     });
   }
 
-  state.slides = slides;
+  // Filter out any slide that has no text content
+  state.slides = slides.filter(s => {
+    if (!s || !s.html) return false;
+    const plainText = s.html.replace(/<[^>]*>/g, '').trim();
+    return plainText.length > 0;
+  });
+
   updateStats();
   renderSlides();
 }
@@ -426,22 +414,15 @@ function setupSandbox() {
   }
 }
 
-// Parse Cover Slide
-function parseCoverSlide(sectionMarkdown) {
-  const lines = sectionMarkdown.split('\n');
-  const h1Line = lines.find(l => l.startsWith('# '));
-
-  // Use explicitly configured title if present, otherwise fallback to markdown h1
-  const title = (state.title && state.title.trim()) || (h1Line ? h1Line.replace(/^#\s+/, '').trim() : 'Title');
-  const restLines = lines.filter(l => l !== h1Line).join('\n').trim();
-
-  // Use explicitly configured subtitle if present
+// Generate Cover Slide strictly from Title & Subtitle inputs
+function generateCoverSlide() {
+  const title = (state.title || '').trim();
   let subtitleHTML = '';
   if (state.subtitle && state.subtitle.trim()) {
     subtitleHTML = marked.parse(state.subtitle.trim());
   }
 
-  const coverSlide = {
+  return {
     type: 'cover',
     title: title,
     subtitle: subtitleHTML,
@@ -460,100 +441,147 @@ function parseCoverSlide(sectionMarkdown) {
       </div>
     `
   };
-
-  return { coverSlide, remainingMarkdown: restLines };
 }
 
-// Content Auto-Packing Engine
+// Split text into individual sentences preserving punctuation and markdown formatting
+function splitIntoSentences(text) {
+  if (!text) return [];
+  const rawMatches = text.match(/[^.!?]+(?:[.!?]+[*_"'”’)]*|$)/g);
+  if (!rawMatches) return [text];
+  return rawMatches.map(s => s.trim()).filter(Boolean);
+}
+
+// Content Auto-Packing Engine with Sentence-Level Precision
 function packContentIntoSlides(markdownText, slidesArray) {
   if (!markdownText.trim()) return;
 
   const tokens = marked.lexer(markdownText);
-  const blocks = tokens.map(t => ({
-    html: marked.parser([t]),
-    type: t.type,
-    depth: t.depth
-  }));
-
   let currentBlocks = [];
   elements.sandboxContent.innerHTML = '';
 
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
-    const blockHtml = block.html;
-
-    // Automatic slide break for headings/subheadings (h1, h2, h3, etc.)
-    // If current slide already has content, start the heading on a new slide
-    if (block.type === 'heading' && currentBlocks.length > 0) {
+  function flushCurrentSlide() {
+    const combined = currentBlocks.join('').trim();
+    // Only push if there is actual non-empty content
+    if (combined && combined.replace(/<[^>]*>/g, '').trim().length > 0) {
       slidesArray.push({
         type: 'body',
-        html: currentBlocks.join('')
+        html: combined
       });
-      currentBlocks = [];
-      elements.sandboxContent.innerHTML = '';
+    }
+    currentBlocks = [];
+    elements.sandboxContent.innerHTML = '';
+  }
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+
+    // Automatic slide break for headings (h1, h2, h3, etc.)
+    if (token.type === 'heading') {
+      flushCurrentSlide();
+      const headingHtml = marked.parser([token]);
+      currentBlocks.push(headingHtml);
+      elements.sandboxContent.innerHTML = headingHtml;
+      continue;
     }
 
-    const testBlocks = [...currentBlocks, blockHtml];
-    elements.sandboxContent.innerHTML = testBlocks.join('');
+    // Paragraph sentence-level packing
+    if (token.type === 'paragraph') {
+      const fullParagraphHtml = marked.parser([token]);
 
-    // Check if container overflows
+      // Check if full paragraph fits in current slide
+      elements.sandboxContent.innerHTML = [...currentBlocks, fullParagraphHtml].join('');
+      if (elements.sandboxContent.scrollHeight <= elements.sandboxContent.clientHeight) {
+        currentBlocks.push(fullParagraphHtml);
+        continue;
+      }
+
+      // Overflows: break down into individual sentences
+      const sentences = splitIntoSentences(token.text);
+      if (sentences.length <= 1) {
+        // Single sentence that doesn't fit with current blocks
+        if (currentBlocks.length > 0) {
+          // If currentBlocks only has a heading, keep heading + sentence together on new slide
+          const isOnlyHeading = currentBlocks.length === 1 && currentBlocks[0].startsWith('<h');
+          if (isOnlyHeading) {
+            currentBlocks.push(fullParagraphHtml);
+            flushCurrentSlide();
+          } else {
+            flushCurrentSlide();
+            currentBlocks.push(fullParagraphHtml);
+          }
+        } else {
+          currentBlocks.push(fullParagraphHtml);
+          flushCurrentSlide();
+        }
+        continue;
+      }
+
+      // Multiple sentences: pack greedily onto slide
+      let activeSentences = [];
+
+      for (let s = 0; s < sentences.length; s++) {
+        const sentence = sentences[s];
+        const candidateSentences = [...activeSentences, sentence];
+        const candidateHtml = `<p>${marked.parseInline(candidateSentences.join(' '))}</p>`;
+
+        elements.sandboxContent.innerHTML = [...currentBlocks, candidateHtml].join('');
+
+        if (elements.sandboxContent.scrollHeight <= elements.sandboxContent.clientHeight) {
+          // Fits on current slide
+          activeSentences.push(sentence);
+        } else {
+          // Overflows: commit active sentences if any
+          if (activeSentences.length > 0) {
+            currentBlocks.push(`<p>${marked.parseInline(activeSentences.join(' '))}</p>`);
+            flushCurrentSlide();
+            activeSentences = [sentence];
+            elements.sandboxContent.innerHTML = `<p>${marked.parseInline(sentence)}</p>`;
+          } else {
+            // Nothing fit with preceding blocks on current slide
+            // If current slide only has a heading, keep heading + first sentence together on next slide
+            const isOnlyHeading = currentBlocks.length === 1 && currentBlocks[0].startsWith('<h');
+            if (isOnlyHeading) {
+              const headingBackup = currentBlocks[0];
+              currentBlocks = [];
+              elements.sandboxContent.innerHTML = '';
+              // Put heading and sentence on fresh slide
+              currentBlocks.push(headingBackup);
+              activeSentences = [sentence];
+            } else {
+              flushCurrentSlide();
+              activeSentences = [sentence];
+            }
+            elements.sandboxContent.innerHTML = `<p>${marked.parseInline(sentence)}</p>`;
+          }
+        }
+      }
+
+      if (activeSentences.length > 0) {
+        currentBlocks.push(`<p>${marked.parseInline(activeSentences.join(' '))}</p>`);
+        elements.sandboxContent.innerHTML = currentBlocks.join('');
+      }
+      continue;
+    }
+
+    // Other block elements (lists, blockquotes, code blocks)
+    const blockHtml = marked.parser([token]);
+    elements.sandboxContent.innerHTML = [...currentBlocks, blockHtml].join('');
+
     if (elements.sandboxContent.scrollHeight > elements.sandboxContent.clientHeight) {
       if (currentBlocks.length > 0) {
-        slidesArray.push({
-          type: 'body',
-          html: currentBlocks.join('')
-        });
-        currentBlocks = [];
-        elements.sandboxContent.innerHTML = '';
-        
-        i--;
-        continue;
+        flushCurrentSlide();
+        currentBlocks.push(blockHtml);
+        elements.sandboxContent.innerHTML = blockHtml;
       } else {
-        const splitPieces = splitOversizedBlock(blockHtml);
-        if (splitPieces.length > 1) {
-          const newBlocks = splitPieces.map(piece => ({
-            html: piece,
-            type: 'paragraph'
-          }));
-          blocks.splice(i, 1, ...newBlocks);
-          i--;
-          continue;
-        } else {
-          slidesArray.push({
-            type: 'body',
-            html: blockHtml
-          });
-          currentBlocks = [];
-          elements.sandboxContent.innerHTML = '';
-        }
+        currentBlocks.push(blockHtml);
+        flushCurrentSlide();
       }
     } else {
       currentBlocks.push(blockHtml);
     }
   }
 
-  if (currentBlocks.length > 0) {
-    slidesArray.push({
-      type: 'body',
-      html: currentBlocks.join('')
-    });
-  }
-}
-
-// Split an oversized paragraph by sentence boundaries
-function splitOversizedBlock(htmlBlock) {
-  const match = htmlBlock.match(/^<p>([\s\S]*)<\/p>$/i);
-  if (!match) return [htmlBlock];
-
-  const innerText = match[1];
-  const sentences = innerText.split(/(?<=[.?!])\s+/);
-  if (sentences.length <= 1) return [htmlBlock];
-
-  const mid = Math.ceil(sentences.length / 2);
-  const part1 = `<p>${sentences.slice(0, mid).join(' ')}</p>`;
-  const part2 = `<p>${sentences.slice(mid).join(' ')}</p>`;
-
-  return [part1, part2];
+  flushCurrentSlide();
 }
 
 // Generate Outro Slide HTML

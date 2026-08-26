@@ -128,9 +128,10 @@ body {
   font-weight: 750;
 }
 
-.slide-content em {
+.slide-content em,
+.slide-content i {
+  font-style: italic !important;
   color: var(--slide-text);
-  opacity: 0.9;
 }
 
 .slide-content blockquote {
