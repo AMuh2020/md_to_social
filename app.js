@@ -50,7 +50,7 @@ Should I write more stuff? Probably a good habit, plus you learn to convert thou
 
 AbdulMuhmeen A. Leasu (aka AMAL)`,
   aspectRatio: '4:5', // '4:5' or '1:1'
-  fontSize: 44, // px
+  fontSize: 55, // px
   lineHeight: 1.45,
   padding: 100, // px
   textAlign: 'left',
